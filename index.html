@@ -1,0 +1,812 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+  <meta name="mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="black">
+  <meta name="theme-color" content="#0c0c10">
+  <title>WAKEUP PROTOCOL</title>
+  <link href="https://fonts.googleapis.com/css2?family=Bebas+Neue&family=Share+Tech+Mono&family=Oswald:wght@300;400;700&display=swap" rel="stylesheet">
+  <style>
+    :root {
+      --red: #ff1a1a;
+      --amber: #ff8c00;
+      --green: #00ff88;
+      --bg: #0a0a0a;
+      --panel: #111111;
+      --border: #2a2a2a;
+      --text: #e0e0e0;
+      --dim: #555;
+      /* bedside palette */
+      --b-bg: #0c0c10;
+      --b-time: #ece6d8;
+      --b-date: #3a4455;
+      --b-temp: #e8b87a;
+      --b-rain: #7ab8e8;
+      --b-sep: rgba(255,255,255,0.07);
+      --b-armed: #3a7a52;
+      --b-muted: #252830;
+    }
+    * { box-sizing: border-box; margin: 0; padding: 0; -webkit-tap-highlight-color: transparent; }
+
+    body {
+      background: var(--bg);
+      color: var(--text);
+      font-family: 'Share Tech Mono', monospace;
+      min-height: 100vh;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      overflow-x: hidden;
+    }
+    body::before {
+      content: '';
+      position: fixed;
+      inset: 0;
+      background: repeating-linear-gradient(0deg, transparent, transparent 2px, rgba(0,0,0,0.12) 2px, rgba(0,0,0,0.12) 4px);
+      pointer-events: none;
+      z-index: 1;
+    }
+
+    /* ── SETUP VIEW ─────────────────────────────── */
+    #setup-view { width: 100%; display: flex; flex-direction: column; align-items: center; }
+
+    .header {
+      width: 100%;
+      padding: 18px 20px 10px;
+      border-bottom: 1px solid var(--border);
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+    }
+    .header-title { font-family: 'Oswald', sans-serif; font-size: 13px; letter-spacing: 4px; color: var(--red); }
+    .status-dot { width: 8px; height: 8px; border-radius: 50%; background: var(--green); box-shadow: 0 0 8px var(--green); animation: blink 2s infinite; }
+    @keyframes blink { 0%,100%{opacity:1} 50%{opacity:0.2} }
+
+    .clock-wrap { padding: 28px 20px 16px; text-align: center; }
+    .clock { font-family: 'Oswald', sans-serif; font-size: clamp(56px, 16vw, 90px); font-weight: 700; letter-spacing: -2px; color: #fff; text-shadow: 0 0 30px rgba(255,255,255,0.1); line-height: 1; }
+    .date-line { font-size: 11px; letter-spacing: 3px; color: var(--dim); margin-top: 6px; text-transform: uppercase; }
+
+    .main { width: 100%; max-width: 480px; padding: 0 16px 40px; display: flex; flex-direction: column; gap: 14px; }
+
+    .panel { background: var(--panel); border: 1px solid var(--border); border-radius: 4px; padding: 18px; }
+    .panel-label { font-size: 9px; letter-spacing: 4px; color: var(--dim); text-transform: uppercase; margin-bottom: 14px; }
+
+    input[type="time"] {
+      width: 100%;
+      background: #1a1a1a;
+      border: 1px solid #333;
+      border-radius: 3px;
+      color: #fff;
+      font-family: 'Oswald', sans-serif;
+      font-size: 38px;
+      font-weight: 700;
+      padding: 10px 14px;
+      outline: none;
+      color-scheme: dark;
+    }
+    input[type="time"]:focus { border-color: var(--amber); }
+
+    .challenge-row { display: flex; gap: 8px; }
+    .challenge-btn {
+      flex: 1; background: #1a1a1a; border: 1px solid #333; border-radius: 3px;
+      color: var(--dim); font-family: 'Share Tech Mono', monospace; font-size: 11px;
+      letter-spacing: 1px; padding: 10px 6px; cursor: pointer; text-align: center; transition: all 0.15s;
+    }
+    .challenge-btn.active { border-color: var(--amber); color: var(--amber); background: rgba(255,140,0,0.08); }
+    .challenge-btn .icon { font-size: 18px; display: block; margin-bottom: 4px; }
+
+    .btn-set {
+      width: 100%; background: var(--red); border: none; border-radius: 3px;
+      color: #fff; font-family: 'Oswald', sans-serif; font-size: 20px; font-weight: 700;
+      letter-spacing: 4px; padding: 16px; cursor: pointer; text-transform: uppercase;
+      transition: all 0.15s; position: relative; overflow: hidden;
+    }
+    .btn-set:active { transform: scale(0.98); }
+    .btn-set.armed { background: #1a1a1a; border: 1px solid var(--green); color: var(--green); }
+    .btn-set.armed::before {
+      content: ''; position: absolute; inset: 0;
+      background: linear-gradient(90deg, transparent 0%, rgba(0,255,136,0.06) 50%, transparent 100%);
+      animation: sweep 3s linear infinite;
+    }
+    @keyframes sweep { from{transform:translateX(-100%)} to{transform:translateX(100%)} }
+
+    .btn-bedside {
+      width: 100%; background: var(--b-bg); border: 1px solid #1e2030;
+      border-radius: 3px; color: #4a5568; font-family: 'Oswald', sans-serif;
+      font-size: 16px; font-weight: 400; letter-spacing: 4px; padding: 14px;
+      cursor: pointer; text-transform: uppercase; transition: all 0.2s;
+    }
+    .btn-bedside:active { color: var(--b-time); border-color: #3a4455; }
+
+    .btn-test {
+      width: 100%; background: transparent; border: 1px solid #2a2a2a; border-radius: 3px;
+      color: var(--dim); font-family: 'Share Tech Mono', monospace; font-size: 12px;
+      letter-spacing: 2px; padding: 12px; cursor: pointer; transition: all 0.15s;
+    }
+    .btn-test:active { border-color: var(--amber); color: var(--amber); }
+
+    .alarm-status { text-align: center; padding: 8px; font-size: 11px; letter-spacing: 2px; color: var(--dim); }
+    .alarm-status.armed { color: var(--green); }
+
+    .log { font-size: 10px; letter-spacing: 1px; color: var(--dim); line-height: 1.8; max-height: 80px; overflow: hidden; }
+    .log-entry { display: block; }
+    .log-entry.ok { color: var(--green); }
+    .log-entry.warn { color: var(--amber); }
+    .log-entry.err { color: var(--red); }
+
+    .vol-warning { background: rgba(255,140,0,0.08); border: 1px solid rgba(255,140,0,0.25); border-radius: 3px; padding: 10px 14px; font-size: 10px; letter-spacing: 1px; color: var(--amber); line-height: 1.7; }
+
+    /* ── BEDSIDE VIEW ────────────────────────────── */
+    #bedside-view {
+      display: none;
+      position: fixed;
+      inset: 0;
+      z-index: 50;
+      background: var(--b-bg);
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      padding: 24px 20px 60px;
+    }
+    #bedside-view.active { display: flex; }
+
+    /* subtle grain */
+    #bedside-view::before {
+      content: '';
+      position: absolute;
+      inset: 0;
+      background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 256 256' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='noise'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23noise)' opacity='0.04'/%3E%3C/svg%3E");
+      pointer-events: none;
+      opacity: 0.4;
+    }
+
+    .b-settings-btn {
+      position: absolute; top: 14px; right: 14px;
+      background: transparent; border: 1px solid rgba(255,255,255,0.07);
+      border-radius: 3px; color: rgba(255,255,255,0.15);
+      font-size: 16px; width: 34px; height: 34px;
+      cursor: pointer; display: flex; align-items: center; justify-content: center;
+      transition: all 0.2s; z-index: 2;
+    }
+    .b-settings-btn:active { color: rgba(255,255,255,0.5); border-color: rgba(255,255,255,0.25); }
+
+    .b-time-block { position: relative; text-align: center; z-index: 2; }
+
+    .b-time {
+      font-family: 'Bebas Neue', sans-serif;
+      font-size: clamp(100px, 26vw, 172px);
+      color: var(--b-time);
+      letter-spacing: 6px;
+      line-height: 1;
+      text-shadow: 0 0 80px rgba(236,230,216,0.08);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+    }
+    .b-colon {
+      margin: 0 2px;
+      padding-bottom: 8px;
+      animation: colon-blink 1s step-end infinite;
+      color: rgba(236,230,216,0.5);
+    }
+    @keyframes colon-blink { 0%,100%{opacity:1} 50%{opacity:0.08} }
+
+    .b-seconds {
+      position: absolute;
+      right: -2px;
+      bottom: 6px;
+      font-family: 'Bebas Neue', sans-serif;
+      font-size: clamp(22px, 5vw, 36px);
+      color: rgba(236,230,216,0.2);
+      letter-spacing: 2px;
+    }
+
+    .b-date {
+      font-family: 'Oswald', sans-serif;
+      font-weight: 300;
+      font-size: clamp(13px, 2.8vw, 20px);
+      letter-spacing: 5px;
+      color: var(--b-date);
+      text-transform: uppercase;
+      margin-top: 6px;
+      z-index: 2;
+    }
+
+    .b-divider {
+      width: min(90%, 420px);
+      height: 1px;
+      background: var(--b-sep);
+      margin: 28px 0 24px;
+      z-index: 2;
+    }
+
+    /* weather */
+    .b-weather {
+      display: flex;
+      width: min(90%, 420px);
+      gap: 0;
+      z-index: 2;
+    }
+    .b-weather-col {
+      flex: 1;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      gap: 4px;
+      padding: 0 16px;
+    }
+    .b-weather-col + .b-weather-col { border-left: 1px solid var(--b-sep); }
+
+    .b-w-label {
+      font-family: 'Share Tech Mono', monospace;
+      font-size: 8px;
+      letter-spacing: 3px;
+      color: var(--b-muted);
+      text-transform: uppercase;
+      margin-bottom: 4px;
+    }
+    .b-w-icon { font-size: 30px; line-height: 1; }
+    .b-w-temp {
+      font-family: 'Bebas Neue', sans-serif;
+      font-size: clamp(36px, 8vw, 52px);
+      color: var(--b-temp);
+      letter-spacing: 1px;
+      line-height: 1;
+    }
+    .b-w-desc {
+      font-family: 'Share Tech Mono', monospace;
+      font-size: 9px;
+      letter-spacing: 2px;
+      color: var(--b-date);
+    }
+    .b-w-range {
+      font-family: 'Oswald', sans-serif;
+      font-weight: 300;
+      font-size: clamp(13px, 3vw, 17px);
+      color: var(--b-temp);
+      opacity: 0.75;
+      letter-spacing: 1px;
+    }
+    .b-w-rain {
+      font-family: 'Oswald', sans-serif;
+      font-size: clamp(14px, 3vw, 18px);
+      font-weight: 400;
+      color: var(--b-rain);
+      letter-spacing: 1px;
+    }
+    .b-w-loading {
+      font-family: 'Share Tech Mono', monospace;
+      font-size: 10px;
+      letter-spacing: 2px;
+      color: var(--b-muted);
+    }
+
+    /* alarm indicator strip at bottom */
+    .b-alarm-strip {
+      position: absolute;
+      bottom: 0; left: 0; right: 0;
+      padding: 10px;
+      text-align: center;
+      font-family: 'Share Tech Mono', monospace;
+      font-size: 9px;
+      letter-spacing: 3px;
+      color: var(--b-muted);
+      border-top: 1px solid var(--b-sep);
+      background: rgba(0,0,0,0.3);
+      z-index: 2;
+      transition: color 0.3s;
+    }
+    .b-alarm-strip.armed { color: var(--b-armed); }
+
+    /* ── ALARM OVERLAY ───────────────────────────── */
+    #alarm-overlay {
+      display: none; position: fixed; inset: 0; z-index: 9999;
+      background: #000; flex-direction: column; align-items: center;
+      justify-content: center; text-align: center; padding: 30px 20px; overflow: hidden;
+    }
+    #alarm-overlay.active { display: flex; }
+
+    .overlay-bg { position: absolute; inset: 0; background: var(--red); opacity: 0; animation: pulse-bg 0.8s ease-in-out infinite alternate; }
+    @keyframes pulse-bg { from{opacity:0.05} to{opacity:0.25} }
+    .overlay-scanlines { position: absolute; inset: 0; background: repeating-linear-gradient(0deg, transparent, transparent 3px, rgba(0,0,0,0.3) 3px, rgba(0,0,0,0.3) 6px); pointer-events: none; }
+
+    .wake-title {
+      font-family: 'Oswald', sans-serif; font-size: clamp(48px, 15vw, 80px); font-weight: 700;
+      color: var(--red); letter-spacing: 6px; line-height: 1; position: relative;
+      animation: shake 0.5s infinite; text-shadow: 0 0 40px rgba(255,26,26,0.6);
+    }
+    @keyframes shake { 0%,100%{transform:translateX(0)} 20%{transform:translateX(-3px)} 40%{transform:translateX(3px)} 60%{transform:translateX(-2px)} 80%{transform:translateX(2px)} }
+    .wake-sub { font-size: 11px; letter-spacing: 5px; color: var(--dim); margin-top: 8px; position: relative; }
+
+    .challenge-area { position: relative; margin-top: 30px; width: 100%; max-width: 360px; }
+    .challenge-counter { font-size: 10px; letter-spacing: 3px; color: var(--dim); margin-bottom: 14px; }
+    .challenge-counter em { color: var(--amber); font-style: normal; }
+    .math-problem { font-family: 'Oswald', sans-serif; font-size: clamp(32px, 10vw, 48px); color: #fff; font-weight: 700; margin-bottom: 16px; position: relative; }
+    .answer-input { width: 100%; background: #1a1a1a; border: 2px solid var(--amber); border-radius: 3px; color: #fff; font-family: 'Oswald', sans-serif; font-size: 32px; font-weight: 700; text-align: center; padding: 12px; outline: none; }
+    .answer-input.wrong { border-color: var(--red); animation: wrong-shake 0.3s ease; }
+    @keyframes wrong-shake { 0%,100%{transform:translateX(0)} 25%{transform:translateX(-8px)} 75%{transform:translateX(8px)} }
+    .answer-input.correct { border-color: var(--green); }
+    .btn-submit { width: 100%; background: var(--amber); border: none; border-radius: 3px; color: #000; font-family: 'Oswald', sans-serif; font-size: 22px; font-weight: 700; letter-spacing: 3px; padding: 16px; cursor: pointer; margin-top: 12px; text-transform: uppercase; }
+    .progress-dots { display: flex; justify-content: center; gap: 10px; margin-top: 20px; }
+    .dot { width: 10px; height: 10px; border-radius: 50%; background: #333; transition: all 0.3s; }
+    .dot.done { background: var(--green); box-shadow: 0 0 8px var(--green); }
+    .dot.current { background: var(--amber); box-shadow: 0 0 8px var(--amber); }
+    .rearm-bar { position: absolute; bottom: 0; left: 0; right: 0; height: 3px; background: var(--dim); overflow: hidden; }
+    .rearm-progress { height: 100%; background: var(--red); width: 0%; }
+
+    .mash-btn {
+      width: 180px; height: 180px; border-radius: 50%;
+      background: radial-gradient(circle at 40% 35%, #ff4444, #aa0000);
+      border: 4px solid var(--red); box-shadow: 0 0 40px rgba(255,26,26,0.5), inset 0 -4px 10px rgba(0,0,0,0.4);
+      font-family: 'Oswald', sans-serif; font-size: 14px; letter-spacing: 2px; color: #fff;
+      cursor: pointer; display: flex; flex-direction: column; align-items: center; justify-content: center;
+      -webkit-user-select: none; user-select: none;
+    }
+    .mash-btn:active { transform: scale(0.93); }
+    .mash-count { font-size: 48px; font-weight: 700; line-height: 1; }
+    .mash-bar-wrap { width: 200px; height: 6px; background: #222; border-radius: 3px; margin-top: 16px; overflow: hidden; }
+    .mash-bar { height: 100%; background: var(--red); width: 0%; transition: width 0.1s; border-radius: 3px; }
+
+    /* ── DISMISSED ───────────────────────────────── */
+    .dismissed-screen { display: none; position: fixed; inset: 0; z-index: 10000; background: #0a0a0a; flex-direction: column; align-items: center; justify-content: center; gap: 12px; }
+    .dismissed-screen.show { display: flex; }
+    .dismissed-icon { font-size: 64px; }
+    .dismissed-text { font-family: 'Oswald', sans-serif; font-size: 28px; letter-spacing: 4px; color: var(--green); }
+    .dismissed-sub { font-size: 11px; letter-spacing: 2px; color: var(--dim); }
+    .btn-reset { margin-top: 20px; background: transparent; border: 1px solid #333; border-radius: 3px; color: var(--dim); font-family: 'Share Tech Mono', monospace; font-size: 12px; letter-spacing: 2px; padding: 12px 24px; cursor: pointer; }
+  </style>
+</head>
+<body>
+
+<!-- ══ SETUP VIEW ══ -->
+<div id="setup-view">
+  <div class="header">
+    <div class="header-title">⚡ Wakeup Protocol</div>
+    <div class="status-dot" id="status-dot"></div>
+  </div>
+  <div class="clock-wrap">
+    <div class="clock" id="clock">00:00:00</div>
+    <div class="date-line" id="date-line">—</div>
+  </div>
+  <div class="main">
+    <div class="vol-warning">⚠ BEFORE SETTING ALARM — Turn tablet volume to MAX.<br>Keep screen on. Plug in overnight.</div>
+    <div class="panel">
+      <div class="panel-label">// Set Alarm Time</div>
+      <input type="time" id="alarm-time" value="07:00">
+    </div>
+    <div class="panel">
+      <div class="panel-label">// Dismissal Challenge</div>
+      <div class="challenge-row">
+        <button class="challenge-btn active" data-mode="math" onclick="selectMode('math')"><span class="icon">🧮</span>3× MATH</button>
+        <button class="challenge-btn" data-mode="mash" onclick="selectMode('mash')"><span class="icon">👊</span>30× MASH</button>
+        <button class="challenge-btn" data-mode="both" onclick="selectMode('both')"><span class="icon">💀</span>BOTH</button>
+      </div>
+    </div>
+    <button class="btn-set" id="btn-set" onclick="toggleAlarm()">SET ALARM</button>
+    <div class="alarm-status" id="alarm-status">No alarm set</div>
+    <button class="btn-bedside" onclick="enterBedside()">🌙 &nbsp;BEDSIDE MODE</button>
+    <button class="btn-test" onclick="triggerTest()">▶ TEST ALARM NOW</button>
+    <div class="panel">
+      <div class="panel-label">// System Log</div>
+      <div class="log" id="log"><span class="log-entry">System ready.</span></div>
+    </div>
+  </div>
+</div>
+
+<!-- ══ BEDSIDE VIEW ══ -->
+<div id="bedside-view">
+  <button class="b-settings-btn" onclick="exitBedside()" title="Settings">⚙</button>
+
+  <div class="b-time-block">
+    <div class="b-time">
+      <span id="b-h">00</span>
+      <span class="b-colon">:</span>
+      <span id="b-m">00</span>
+    </div>
+    <span class="b-seconds" id="b-s">00</span>
+  </div>
+
+  <div class="b-date" id="b-date">—</div>
+
+  <div class="b-divider"></div>
+
+  <div class="b-weather" id="b-weather">
+    <div class="b-weather-col">
+      <div class="b-w-label">Now</div>
+      <div class="b-w-loading" id="b-w-now">locating…</div>
+    </div>
+    <div class="b-weather-col">
+      <div class="b-w-label">Tomorrow</div>
+      <div class="b-w-loading" id="b-w-tom">—</div>
+    </div>
+  </div>
+
+  <div class="b-alarm-strip" id="b-alarm-strip">NO ALARM SET</div>
+</div>
+
+<!-- ══ ALARM OVERLAY ══ -->
+<div id="alarm-overlay">
+  <div class="overlay-bg"></div>
+  <div class="overlay-scanlines"></div>
+  <div class="wake-title">WAKE UP</div>
+  <div class="wake-sub">ALARM FIRING — SOLVE TO DISMISS</div>
+  <div class="challenge-area" id="challenge-area"></div>
+  <div class="rearm-bar"><div class="rearm-progress" id="rearm-progress"></div></div>
+</div>
+
+<!-- ══ DISMISSED ══ -->
+<div class="dismissed-screen" id="dismissed-screen">
+  <div class="dismissed-icon">✅</div>
+  <div class="dismissed-text">ALARM DISMISSED</div>
+  <div class="dismissed-sub" id="dismissed-sub">Good morning.</div>
+  <button class="btn-reset" onclick="fullReset()">SET NEW ALARM</button>
+</div>
+
+<script>
+// ── STATE ──────────────────────────────────────────────────
+let alarmTime = null, alarmArmed = false, challengeMode = 'math';
+let audioCtx = null, sirenNodes = [];
+let checkInterval = null, rearmTimer = null, rearmProgressInterval = null;
+let mathPhase = 0, mathProblems = [], mashCount = 0;
+let lastFiredMinute = null;
+const MASH_TARGET = 30, REARM_SECONDS = 120;
+
+// ── CLOCK ──────────────────────────────────────────────────
+const DAYS = ['Sunday','Monday','Tuesday','Wednesday','Thursday','Friday','Saturday'];
+const MONTHS = ['January','February','March','April','May','June','July','August','September','October','November','December'];
+const DAYS_S = ['SUN','MON','TUE','WED','THU','FRI','SAT'];
+const MONTHS_S = ['JAN','FEB','MAR','APR','MAY','JUN','JUL','AUG','SEP','OCT','NOV','DEC'];
+
+function pad(n){ return String(n).padStart(2,'0'); }
+
+function updateClock() {
+  const now = new Date();
+  const h = pad(now.getHours()), m = pad(now.getMinutes()), s = pad(now.getSeconds());
+  // setup clock
+  document.getElementById('clock').textContent = `${h}:${m}:${s}`;
+  document.getElementById('date-line').textContent = `${DAYS_S[now.getDay()]} ${now.getDate()} ${MONTHS_S[now.getMonth()]} ${now.getFullYear()}`;
+  // bedside clock
+  document.getElementById('b-h').textContent = h;
+  document.getElementById('b-m').textContent = m;
+  document.getElementById('b-s').textContent = s;
+  document.getElementById('b-date').textContent = `${DAYS[now.getDay()]}, ${now.getDate()} ${MONTHS[now.getMonth()]} ${now.getFullYear()}`;
+}
+setInterval(updateClock, 1000);
+updateClock();
+
+// ── LOG ────────────────────────────────────────────────────
+function log(msg, type='') {
+  const logEl = document.getElementById('log');
+  const now = new Date();
+  const ts = `${pad(now.getHours())}:${pad(now.getMinutes())}:${pad(now.getSeconds())}`;
+  const entry = document.createElement('span');
+  entry.className = `log-entry ${type}`;
+  entry.textContent = `[${ts}] ${msg}`;
+  logEl.insertBefore(entry, logEl.firstChild);
+  while (logEl.children.length > 6) logEl.removeChild(logEl.lastChild);
+}
+
+// ── BEDSIDE MODE ───────────────────────────────────────────
+function enterBedside() {
+  document.getElementById('bedside-view').classList.add('active');
+  const el = document.documentElement;
+  if (el.requestFullscreen) el.requestFullscreen().catch(()=>{});
+  else if (el.webkitRequestFullscreen) el.webkitRequestFullscreen();
+  updateBedsideAlarm();
+  log('Bedside mode on.', 'ok');
+}
+function exitBedside() {
+  document.getElementById('bedside-view').classList.remove('active');
+  if (document.exitFullscreen) document.exitFullscreen().catch(()=>{});
+  else if (document.webkitExitFullscreen) document.webkitExitFullscreen();
+}
+function updateBedsideAlarm() {
+  const strip = document.getElementById('b-alarm-strip');
+  if (alarmArmed && alarmTime) {
+    strip.textContent = `⏰  ALARM ARMED  ·  ${alarmTime}`;
+    strip.className = 'b-alarm-strip armed';
+  } else {
+    strip.textContent = 'NO ALARM SET';
+    strip.className = 'b-alarm-strip';
+  }
+}
+
+// ── WEATHER ────────────────────────────────────────────────
+function wmoIcon(code) {
+  if (code === 0)          return { emoji: '☀️',  label: 'Clear' };
+  if (code <= 2)           return { emoji: '🌤️',  label: 'Partly cloudy' };
+  if (code === 3)          return { emoji: '☁️',  label: 'Overcast' };
+  if (code <= 48)          return { emoji: '🌫️',  label: 'Foggy' };
+  if (code <= 57)          return { emoji: '🌦️',  label: 'Drizzle' };
+  if (code <= 67)          return { emoji: '🌧️',  label: 'Rain' };
+  if (code <= 77)          return { emoji: '❄️',  label: 'Snow' };
+  if (code <= 82)          return { emoji: '🌧️',  label: 'Showers' };
+  if (code <= 99)          return { emoji: '⛈️',  label: 'Storm' };
+  return { emoji: '🌡️', label: 'Unknown' };
+}
+
+async function fetchWeather(lat, lon) {
+  const url = `https://api.open-meteo.com/v1/forecast?latitude=${lat}&longitude=${lon}&current=temperature_2m,apparent_temperature,weather_code&daily=temperature_2m_max,temperature_2m_min,precipitation_probability_max,weather_code&timezone=auto&forecast_days=2`;
+  const res = await fetch(url);
+  const data = await res.json();
+
+  const cur = data.current;
+  const daily = data.daily;
+  const nowW = wmoIcon(cur.weather_code);
+  // tomorrow = index 1
+  const tomW = wmoIcon(daily.weather_code[1]);
+  const tomMax = Math.round(daily.temperature_2m_max[1]);
+  const tomMin = Math.round(daily.temperature_2m_min[1]);
+  const tomRain = daily.precipitation_probability_max[1];
+
+  document.getElementById('b-w-now').innerHTML = `
+    <div class="b-w-icon">${nowW.emoji}</div>
+    <div class="b-w-temp">${Math.round(cur.temperature_2m)}°</div>
+    <div class="b-w-desc">${nowW.label}</div>
+    <div class="b-w-desc" style="color:#2a3545">Feels ${Math.round(cur.apparent_temperature)}°</div>
+  `;
+  document.getElementById('b-w-tom').innerHTML = `
+    <div class="b-w-icon">${tomW.emoji}</div>
+    <div class="b-w-range">${tomMax}° / ${tomMin}°</div>
+    <div class="b-w-desc">${tomW.label}</div>
+    <div class="b-w-rain">💧 ${tomRain}%</div>
+  `;
+  log(`Weather loaded. Now: ${Math.round(cur.temperature_2m)}°, Tomorrow: ${tomMax}°/${tomMin}°`, 'ok');
+}
+
+function loadWeather() {
+  if (!navigator.geolocation) {
+    document.getElementById('b-w-now').innerHTML = '<div class="b-w-loading">unavailable</div>';
+    return;
+  }
+  document.getElementById('b-w-now').innerHTML = '<div class="b-w-loading">locating…</div>';
+  navigator.geolocation.getCurrentPosition(
+    pos => fetchWeather(pos.coords.latitude, pos.coords.longitude).catch(() => {
+      document.getElementById('b-w-now').innerHTML = '<div class="b-w-loading">fetch failed</div>';
+    }),
+    () => {
+      document.getElementById('b-w-now').innerHTML = '<div class="b-w-loading">location denied</div>';
+      log('Weather: location denied.', 'warn');
+    },
+    { timeout: 10000 }
+  );
+}
+loadWeather();
+setInterval(loadWeather, 30 * 60 * 1000); // refresh every 30min
+
+// ── CHALLENGE MODE ─────────────────────────────────────────
+function selectMode(mode) {
+  challengeMode = mode;
+  document.querySelectorAll('.challenge-btn').forEach(b => b.classList.toggle('active', b.dataset.mode === mode));
+  log(`Challenge: ${mode.toUpperCase()}`, 'ok');
+}
+
+// ── AUDIO ──────────────────────────────────────────────────
+function initAudio() {
+  if (!audioCtx) audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+  if (audioCtx.state === 'suspended') audioCtx.resume();
+}
+function startSiren() {
+  initAudio(); stopSiren();
+  const ctx = audioCtx;
+  const master = ctx.createGain(); master.gain.value = 0.9; master.connect(ctx.destination);
+  const osc1 = ctx.createOscillator(); osc1.type = 'sawtooth'; osc1.frequency.value = 960;
+  const lfo1 = ctx.createOscillator(); lfo1.frequency.value = 4;
+  const lfoG1 = ctx.createGain(); lfoG1.gain.value = 200;
+  lfo1.connect(lfoG1); lfoG1.connect(osc1.frequency);
+  const osc2 = ctx.createOscillator(); osc2.type = 'square'; osc2.frequency.value = 320;
+  const pulseGain = ctx.createGain(); pulseGain.gain.value = 0.5;
+  const pulseLFO = ctx.createOscillator(); pulseLFO.frequency.value = 2.5;
+  const pulseMod = ctx.createGain(); pulseMod.gain.value = 0.45;
+  pulseLFO.connect(pulseMod); pulseMod.connect(pulseGain.gain);
+  osc1.connect(pulseGain); osc2.connect(pulseGain); pulseGain.connect(master);
+  osc1.start(); lfo1.start(); osc2.start(); pulseLFO.start();
+  sirenNodes = [osc1,lfo1,osc2,pulseLFO];
+}
+function stopSiren() {
+  sirenNodes.forEach(n => { try { n.stop(); } catch(e){} });
+  sirenNodes = [];
+}
+
+// ── ALARM ARM/DISARM ───────────────────────────────────────
+function toggleAlarm() {
+  initAudio();
+  if (alarmArmed) { disarmAlarm(); return; }
+  const timeVal = document.getElementById('alarm-time').value;
+  if (!timeVal) { log('No time set!', 'err'); return; }
+  alarmTime = timeVal; alarmArmed = true;
+  document.getElementById('btn-set').textContent = '⏹ CANCEL ALARM';
+  document.getElementById('btn-set').classList.add('armed');
+  document.getElementById('status-dot').style.cssText = 'background:var(--amber);box-shadow:0 0 8px var(--amber)';
+  document.getElementById('alarm-status').textContent = `Armed for ${timeVal}`;
+  document.getElementById('alarm-status').className = 'alarm-status armed';
+  clearInterval(checkInterval);
+  checkInterval = setInterval(checkAlarm, 1000);
+  updateBedsideAlarm();
+  log(`Alarm armed → ${timeVal}`, 'ok');
+}
+function disarmAlarm() {
+  alarmArmed = false; alarmTime = null; clearInterval(checkInterval);
+  document.getElementById('btn-set').textContent = 'SET ALARM';
+  document.getElementById('btn-set').classList.remove('armed');
+  document.getElementById('status-dot').style.cssText = 'background:var(--green);box-shadow:0 0 8px var(--green)';
+  document.getElementById('alarm-status').textContent = 'No alarm set';
+  document.getElementById('alarm-status').className = 'alarm-status';
+  updateBedsideAlarm();
+  log('Alarm disarmed.', 'warn');
+}
+
+// ── ALARM CHECK ────────────────────────────────────────────
+function checkAlarm() {
+  if (!alarmArmed || !alarmTime) return;
+  const now = new Date();
+  const current = `${pad(now.getHours())}:${pad(now.getMinutes())}`;
+  const target = alarmTime.substring(0,5);
+  if (current === target && lastFiredMinute !== target) { lastFiredMinute = target; fireAlarm(); }
+  if (current !== target && lastFiredMinute === target) lastFiredMinute = null;
+}
+
+// ── FIRE ALARM ─────────────────────────────────────────────
+function fireAlarm() {
+  log('🔴 ALARM FIRING', 'err');
+  startSiren();
+  // exit bedside first, then fullscreen the overlay
+  document.getElementById('bedside-view').classList.remove('active');
+  const el = document.documentElement;
+  if (el.requestFullscreen) el.requestFullscreen().catch(()=>{});
+  else if (el.webkitRequestFullscreen) el.webkitRequestFullscreen();
+  document.getElementById('alarm-overlay').classList.add('active');
+  buildChallenge();
+  startRearmTimer();
+}
+
+// ── REARM ──────────────────────────────────────────────────
+function startRearmTimer() {
+  clearTimeout(rearmTimer); clearInterval(rearmProgressInterval);
+  const bar = document.getElementById('rearm-progress');
+  bar.style.transition = 'none'; bar.style.width = '0%';
+  let elapsed = 0;
+  rearmProgressInterval = setInterval(() => {
+    elapsed++;
+    bar.style.transition = 'width 1s linear';
+    bar.style.width = ((elapsed / REARM_SECONDS) * 100) + '%';
+    if (elapsed >= REARM_SECONDS) clearInterval(rearmProgressInterval);
+  }, 1000);
+  rearmTimer = setTimeout(() => {
+    log('⚠ Re-firing!', 'err');
+    buildChallenge(); startRearmTimer(); startSiren();
+  }, REARM_SECONDS * 1000);
+}
+
+// ── CHALLENGE ──────────────────────────────────────────────
+function buildChallenge() {
+  const area = document.getElementById('challenge-area');
+  area.innerHTML = ''; mathPhase = 0; mashCount = 0;
+  if (challengeMode === 'math') buildMathChallenge(area);
+  else if (challengeMode === 'mash') buildMashChallenge(area);
+  else buildMathChallenge(area);
+}
+
+function generateProblems() {
+  const ops = ['+','-','×']; const probs = [];
+  for (let i = 0; i < 3; i++) {
+    const op = ops[Math.floor(Math.random() * ops.length)];
+    let a, b, answer;
+    if (op==='+') { a=10+Math.floor(Math.random()*60); b=10+Math.floor(Math.random()*60); answer=a+b; }
+    else if (op==='-') { a=30+Math.floor(Math.random()*50); b=10+Math.floor(Math.random()*(a-10)); answer=a-b; }
+    else { a=2+Math.floor(Math.random()*10); b=2+Math.floor(Math.random()*10); answer=a*b; }
+    probs.push({ q:`${a} ${op} ${b} = ?`, answer });
+  }
+  return probs;
+}
+
+function buildMathChallenge(container) {
+  mathProblems = generateProblems();
+  container.innerHTML = `
+    <div class="challenge-counter">PROBLEM <em id="prob-num">1</em> OF 3</div>
+    <div class="math-problem" id="math-q">${mathProblems[0].q}</div>
+    <input type="number" class="answer-input" id="answer-input" placeholder="?" inputmode="numeric" autocomplete="off" oninput="clearWrong()" onkeydown="handleEnter(event)">
+    <button class="btn-submit" onclick="checkAnswer()">SUBMIT</button>
+    <div class="progress-dots" id="progress-dots">
+      <div class="dot current"></div><div class="dot"></div><div class="dot"></div>
+    </div>`;
+  setTimeout(() => { const i = document.getElementById('answer-input'); if(i) i.focus(); }, 300);
+}
+
+function handleEnter(e) { if (e.key==='Enter') checkAnswer(); }
+function clearWrong() { const i=document.getElementById('answer-input'); if(i) i.classList.remove('wrong'); }
+
+function checkAnswer() {
+  const inp = document.getElementById('answer-input'); if (!inp) return;
+  const val = parseInt(inp.value.trim(), 10);
+  if (isNaN(val)) { inp.classList.add('wrong'); return; }
+  if (val === mathProblems[mathPhase].answer) {
+    inp.classList.add('correct');
+    const dots = document.querySelectorAll('.dot');
+    dots[mathPhase].classList.remove('current'); dots[mathPhase].classList.add('done');
+    mathPhase++;
+    if (mathPhase < 3) {
+      setTimeout(() => {
+        inp.value=''; inp.classList.remove('correct');
+        document.getElementById('math-q').textContent = mathProblems[mathPhase].q;
+        document.getElementById('prob-num').textContent = mathPhase+1;
+        if(dots[mathPhase]) dots[mathPhase].classList.add('current');
+        inp.focus();
+      }, 400);
+    } else {
+      setTimeout(() => {
+        if (challengeMode==='both') buildMashChallenge(document.getElementById('challenge-area'));
+        else dismissAlarm();
+      }, 500);
+    }
+  } else {
+    inp.classList.add('wrong'); inp.value='';
+    log('Wrong answer.', 'err');
+    setTimeout(() => inp.focus(), 100);
+  }
+}
+
+function buildMashChallenge(container) {
+  mashCount = 0;
+  container.innerHTML = `
+    <div style="display:flex;flex-direction:column;align-items:center">
+      <div style="font-size:10px;letter-spacing:3px;color:var(--dim);margin-bottom:16px">MASH ${MASH_TARGET} TIMES</div>
+      <button class="mash-btn" onclick="mash()">
+        <span class="mash-count" id="mash-count">${MASH_TARGET}</span>
+        <span style="font-size:10px;letter-spacing:3px;color:rgba(255,255,255,0.6);margin-top:4px">LEFT</span>
+      </button>
+      <div class="mash-bar-wrap"><div class="mash-bar" id="mash-bar"></div></div>
+    </div>`;
+}
+
+function mash() {
+  mashCount++;
+  const rem = MASH_TARGET - mashCount;
+  document.getElementById('mash-count').textContent = Math.max(0, rem);
+  document.getElementById('mash-bar').style.width = Math.min((mashCount/MASH_TARGET)*100,100)+'%';
+  if (mashCount >= MASH_TARGET) dismissAlarm();
+}
+
+// ── DISMISS ────────────────────────────────────────────────
+function dismissAlarm() {
+  stopSiren(); clearTimeout(rearmTimer); clearInterval(rearmProgressInterval);
+  document.getElementById('alarm-overlay').classList.remove('active');
+  if (document.exitFullscreen) document.exitFullscreen().catch(()=>{});
+  const now = new Date();
+  document.getElementById('dismissed-sub').textContent = `Dismissed at ${pad(now.getHours())}:${pad(now.getMinutes())}. Good morning.`;
+  document.getElementById('dismissed-screen').classList.add('show');
+  alarmArmed = false; clearInterval(checkInterval);
+  log('Alarm dismissed.', 'ok');
+}
+
+function fullReset() {
+  document.getElementById('dismissed-screen').classList.remove('show');
+  lastFiredMinute = null; alarmArmed = false; alarmTime = null;
+  document.getElementById('btn-set').textContent = 'SET ALARM';
+  document.getElementById('btn-set').classList.remove('armed');
+  document.getElementById('status-dot').style.cssText = 'background:var(--green);box-shadow:0 0 8px var(--green)';
+  document.getElementById('alarm-status').textContent = 'No alarm set';
+  document.getElementById('alarm-status').className = 'alarm-status';
+  updateBedsideAlarm();
+  log('Reset. Ready.', 'ok');
+}
+
+function triggerTest() { initAudio(); log('TEST FIRE', 'warn'); fireAlarm(); }
+
+// ── WAKE LOCK ──────────────────────────────────────────────
+async function requestWakeLock() {
+  if ('wakeLock' in navigator) {
+    try { await navigator.wakeLock.request('screen'); log('Wake lock acquired.', 'ok'); }
+    catch(e) { log('Wake lock unavailable.', 'warn'); }
+  }
+}
+requestWakeLock();
+document.addEventListener('visibilitychange', () => { if (document.visibilityState==='visible') requestWakeLock(); });
+
+log('System initialised. Set your alarm.', 'ok');
+</script>
+</body>
+</html>
