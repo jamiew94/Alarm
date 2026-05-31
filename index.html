@@ -21,8 +21,8 @@
       --dim: #555;
       /* bedside palette */
       --b-bg: #0c0c10;
-      --b-time: #ece6d8;
-      --b-date: #3a4455;
+      --b-time: #787068;
+      --b-date: #8899bb;
       --b-temp: #e8b87a;
       --b-rain: #7ab8e8;
       --b-sep: rgba(255,255,255,0.07);
@@ -181,7 +181,7 @@
       color: var(--b-time);
       letter-spacing: 6px;
       line-height: 1;
-      text-shadow: 0 0 80px rgba(236,230,216,0.08);
+      text-shadow: 0 0 40px rgba(120,112,104,0.1);
       display: flex;
       align-items: center;
       justify-content: center;
@@ -190,7 +190,7 @@
       margin: 0 2px;
       padding-bottom: 8px;
       animation: colon-blink 1s step-end infinite;
-      color: rgba(236,230,216,0.5);
+      color: rgba(120,112,104,0.4);
     }
     @keyframes colon-blink { 0%,100%{opacity:1} 50%{opacity:0.08} }
 
@@ -200,7 +200,7 @@
       bottom: 6px;
       font-family: 'Bebas Neue', sans-serif;
       font-size: clamp(22px, 5vw, 36px);
-      color: rgba(236,230,216,0.2);
+      color: rgba(120,112,104,0.18);
       letter-spacing: 2px;
     }
 
@@ -415,7 +415,7 @@
 
   <div class="b-weather" id="b-weather">
     <div class="b-weather-col">
-      <div class="b-w-label">Now</div>
+      <div class="b-w-label" onclick="openCityModal()" style="cursor:pointer;text-decoration:underline;text-underline-offset:3px;">NOW 📍</div>
       <div class="b-w-loading" id="b-w-now">locating…</div>
     </div>
     <div class="b-weather-col">
@@ -558,24 +558,60 @@ async function fetchWeather(lat, lon) {
 }
 
 function loadWeather() {
-  if (!navigator.geolocation) {
-    document.getElementById('b-w-now').innerHTML = '<div class="b-w-loading">unavailable</div>';
-    return;
+  const lat = localStorage.getItem('wx_lat');
+  const lon = localStorage.getItem('wx_lon');
+  if (lat && lon) {
+    fetchWeather(parseFloat(lat), parseFloat(lon)).catch(() => {
+      document.getElementById('b-w-now').innerHTML = '<div class="b-w-loading" style="cursor:pointer" onclick="openCityModal()">fetch failed — tap to retry</div>';
+    });
+  } else {
+    showWeatherTap();
   }
-  document.getElementById('b-w-now').innerHTML = '<div class="b-w-loading">locating…</div>';
-  navigator.geolocation.getCurrentPosition(
-    pos => fetchWeather(pos.coords.latitude, pos.coords.longitude).catch(() => {
-      document.getElementById('b-w-now').innerHTML = '<div class="b-w-loading">fetch failed</div>';
-    }),
-    () => {
-      document.getElementById('b-w-now').innerHTML = '<div class="b-w-loading">location denied</div>';
-      log('Weather: location denied.', 'warn');
-    },
-    { timeout: 10000 }
-  );
+}
+function showWeatherTap() {
+  const city = localStorage.getItem('wx_city');
+  document.getElementById('b-w-now').innerHTML = `
+    <button onclick="openCityModal()" style="background:transparent;border:1px solid #2a2a2a;border-radius:3px;color:#4a5568;font-family:'Share Tech Mono',monospace;font-size:9px;letter-spacing:2px;padding:8px 12px;cursor:pointer;margin-top:4px;">
+      📍 ${city ? 'CHANGE CITY' : 'SET CITY'}
+    </button>`;
+  document.getElementById('b-w-tom').innerHTML = '<div class="b-w-loading">—</div>';
+}
+function openCityModal() {
+  const modal = document.getElementById('loc-modal');
+  modal.style.display = 'flex';
+  const saved = localStorage.getItem('wx_city');
+  const inp = document.getElementById('city-input');
+  inp.value = saved ? saved.split(',')[0] : '';
+  setTimeout(() => inp.focus(), 100);
+}
+function closeCityModal() {
+  document.getElementById('loc-modal').style.display = 'none';
+}
+async function saveCity() {
+  const city = document.getElementById('city-input').value.trim();
+  if (!city) return;
+  closeCityModal();
+  document.getElementById('b-w-now').innerHTML = '<div class="b-w-loading">searching…</div>';
+  try {
+    const res = await fetch(`https://geocoding-api.open-meteo.com/v1/search?name=${encodeURIComponent(city)}&count=1`);
+    const data = await res.json();
+    if (!data.results || !data.results.length) {
+      document.getElementById('b-w-now').innerHTML = '<div class="b-w-loading" style="cursor:pointer" onclick="openCityModal()">city not found — tap to retry</div>';
+      return;
+    }
+    const { latitude, longitude, name, country } = data.results[0];
+    localStorage.setItem('wx_lat', latitude);
+    localStorage.setItem('wx_lon', longitude);
+    localStorage.setItem('wx_city', `${name}, ${country}`);
+    log(`City: ${name}, ${country}`, 'ok');
+    fetchWeather(latitude, longitude);
+  } catch(e) {
+    document.getElementById('b-w-now').innerHTML = '<div class="b-w-loading" style="cursor:pointer" onclick="openCityModal()">lookup failed — tap to retry</div>';
+    log('Geocoding failed.', 'err');
+  }
 }
 loadWeather();
-setInterval(loadWeather, 30 * 60 * 1000); // refresh every 30min
+setInterval(loadWeather, 30 * 60 * 1000);
 
 // ── CHALLENGE MODE ─────────────────────────────────────────
 function selectMode(mode) {
@@ -808,5 +844,18 @@ document.addEventListener('visibilitychange', () => { if (document.visibilitySta
 
 log('System initialised. Set your alarm.', 'ok');
 </script>
+<!-- ══ CITY MODAL ══ -->
+<div id="loc-modal" style="display:none;position:fixed;inset:0;z-index:200;background:rgba(0,0,0,0.88);align-items:center;justify-content:center;padding:20px;">
+  <div style="background:#111;border:1px solid #2a2a2a;border-radius:6px;padding:24px;width:100%;max-width:320px;">
+    <div style="font-family:'Share Tech Mono',monospace;font-size:9px;letter-spacing:3px;color:#555;margin-bottom:6px;">// SET YOUR CITY</div>
+    <div style="font-family:'Share Tech Mono',monospace;font-size:9px;letter-spacing:1px;color:#333;margin-bottom:16px;">No location permission needed</div>
+    <input id="city-input" type="text" placeholder="e.g. Sydney"
+      style="width:100%;background:#1a1a1a;border:1px solid #333;border-radius:3px;color:#fff;font-family:'Oswald',sans-serif;font-size:26px;padding:10px 14px;outline:none;margin-bottom:12px;display:block;"
+      onkeydown="if(event.key==='Enter')saveCity()">
+    <button onclick="saveCity()" style="width:100%;background:#ff8c00;border:none;border-radius:3px;color:#000;font-family:'Oswald',sans-serif;font-size:18px;font-weight:700;letter-spacing:3px;padding:13px;cursor:pointer;display:block;">SAVE</button>
+    <button onclick="closeCityModal()" style="width:100%;background:transparent;border:1px solid #222;border-radius:3px;color:#444;font-family:'Share Tech Mono',monospace;font-size:11px;letter-spacing:2px;padding:10px;cursor:pointer;margin-top:8px;display:block;">CANCEL</button>
+  </div>
+</div>
+
 </body>
 </html>
